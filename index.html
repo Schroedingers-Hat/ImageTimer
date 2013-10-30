@@ -1,0 +1,320 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8">
+
+<title>Upload Images</title>
+</head>
+
+<body>
+
+<style>
+* {
+	box-sizing: border-box;
+}
+
+html, body {
+	min-height: 100%
+}
+a {
+	color: black;
+	text-decoration: none;
+}
+
+.menu-check {
+	display: none;
+}
+#file-chooser {
+	display: none;
+}
+.main-page {
+	float: right;
+	width: 99%;
+	height: 100%;
+	transition width 0.3s ease;
+}
+.main-menu {
+	position: fixed;
+	top: 0;
+	left: -14%;
+	width: 15%;
+	height: 100%;
+	background: #333;
+	overflow: hidden;
+}
+.toggle-menu {
+	float: right;
+	width: 200px;
+	text-align: right;
+	color: #aaa;
+	padding: 5px;
+}
+#menu-check:checked + #main-menu {
+	left: 0;
+}
+#menu-check:checked ~ .main-page {
+	width: 85%;
+}
+#drop-images {
+	float: center;
+	background: #aaa;
+	border: 5px dashed #111;
+	width: 175px;
+	height: 175px;
+	text-align: center;
+	vertical-align:middle;
+    margin-left: auto;
+    margin-right: auto;
+	margin-bottom: 20px;
+	margin-top: 20px;
+}
+.gui-button {
+	float: right;
+	cursor: default;
+	background: #bbb;
+	border: 2px solid #222;
+	width: 100%;
+}
+.scrollable {
+	float: right;
+	background: #bbb;
+	border: 2px solid #222;
+	width: 100%;
+	overflow: scroll;
+	height: 50%;
+}
+.x {
+	text-align: right;
+}
+#image-holder {
+	float:right;
+	width: 100%;
+	margin-left: auto;
+    margin-right: auto;
+}
+#main-image {
+	display:block;
+	margin-left: auto;
+    margin-right: auto;
+}
+</style>
+<input type="checkbox" class="menu-check" id="menu-check" />
+<nav class="main-menu" id="main-menu">
+	<label for="menu-check" class="toggle-menu" id="toggle-menu">
+	>
+	</label>
+	<input type="file" name="file-chooser" multiple="multiple" id="file-chooser">
+	<br>	
+	<div id="drop-images" ondragover="return false;">
+		Drag an image here to add to the list.
+	</div>
+	<div  class="gui-button">
+	<label for="file-chooser" class="menu-item" id="chooser-button" width="100%">
+	Choose Images
+	</label>
+	</div>
+	<a href="#" id="save" class="gui-button">Save Images</a>
+	<a href="#" id="clear" class="gui-button" onclick="localStorage.clear();location.reload()">Clear Image Cache</a>
+	<a href="#" id="result-button" class="gui-button">Display Results</a>
+	<a href="#" id="show-thumbs" class="gui-button">Show/Hide Thumbs</a>
+	<div id="list" class="scrollable"></div>
+</nav>
+<div class="main-page">
+	<h1 id="instruction">Press up or down to rate each image. Press Space to begin.</h1>
+	<div id="image-holder"><img id="main-image" src=""></img></div>
+</div>
+</body>
+<script>
+(function(){
+if(window.FileReader) {
+	addEventHandler(window, 'load', function() {
+	var imgArray = [];
+	var dropper = document.getElementById('drop-images');
+	var chooser = document.getElementById('file-chooser');
+	var list   = document.getElementById('list');
+	var save = document.getElementById('save');
+	var loadLast = document.getElementById('load-last');
+	var mainImg = document.getElementById('main-image');
+	var resultButton = document.getElementById('result-button');
+	var currentIndex = 0;
+	var isFinished = false;
+	var isStarted = false;
+	var results = [];
+	var tempDate = new Date().getTime();
+	var sessionBeginTime = tempDate;
+	var tempResult = {msBegin: 0, msEnd: 0, sTimeTaken: 0, fileName: '', sessionID: sessionBeginTime};
+	function cancel(evt) {
+		if (evt.preventDefault) { evt.preventDefault(); }
+		return false;
+	}
+	
+	document.getElementById('show-thumbs').onclick = function(){list.hidden = !list.hidden};
+	save.onclick = function(){
+		if(localStorage){
+			console.log(imgArray);
+			localStorage.clear();
+			localStorage['imgArray'] = JSON.stringify(imgArray);
+		}
+	};
+
+	
+	addEventHandler(document, 'keydown', keyHandler);
+	addEventHandler(document, 'keypress', cancel);
+	addEventHandler(document, 'onkeypress', cancel);
+	addEventHandler(dropper, 'dragover', cancel);
+	addEventHandler(dropper, 'dragenter', cancel);
+	addEventHandler(dropper, 'drop', dragEvt);
+	addEventHandler(chooser, 'change', chooseEvt);
+	resultButton.onclick = function() {
+		mainImg.hidden = true;
+		document.getElementById('image-holder').innerHTML = JSON.stringify(results);
+	};
+	function dragEvt(evt) {
+		evt = evt || window.event; // IE Compatability thing.
+		if (evt.preventDefault) { evt.preventDefault(); }
+		var dt = evt.dataTransfer;
+		var files = dt.files;
+		fileProc(files);
+	}
+	function chooseEvt(evt) {
+		evt = evt || window.event; // IE Compatability thing.
+		var files = chooser.files;
+		fileProc(files);
+	}
+	
+	function fileProc(files) {
+	
+		console.log(files);
+		//list.hidden=true;
+		for(var i = 0; i < files.length; i++) { // fileLists aren't arrays, apparently.
+			var file = files[i];
+			var reader = new FileReader();
+			console.log(reader);
+			reader.readAsDataURL(file);
+			addEventHandler(reader, 'loadend', function(evt, file) {
+				var binary = this.result;
+				var DOMFile = document.createElement('div');
+				DOMFile.innerHTML = file.name+' '+Math.round(file.size/1000)+' kB';
+				list.appendChild(DOMFile)
+			
+				var img = document.createElement("img");
+				img.file = file;
+				img.src = binary;
+				console.log(img.style);
+				console.log(list.style);
+				img.style.width = '100%';
+				img.id = file.name;
+				imgArray.push({src: binary, file: file, name: file.name});
+				list.appendChild(img);
+			}.bindToEventHandler(file));
+		}
+		list.hidden=false;
+	};
+	function begin(){
+		isStarted = true;
+		console.log(imgArray);
+		if(imgArray.length > 0) {
+			mainImg.hidden = false;
+			currentIndex = 0;
+			mainImg.src = imgArray[currentIndex].src;
+			mainImg.file = imgArray[currentIndex].file;
+			tempResult.msBegin = new Date().getTime();
+			tempResult.fileName = mainImg.file.name;
+			document.getElementById('instruction').hidden = true;
+			} else {
+				document.getElementById('instruction').innerHTML = 'No images in array.';
+		}
+	}
+	function nextImg(vote){
+		tempResult.msEnd = new Date().getTime();
+		tempResult.sTimeTaken = (tempResult.msEnd - tempResult.msBegin) / 1000;
+		tempResult.vote = vote;
+		results.push(tempResult);
+		currentIndex++;
+		if(currentIndex < imgArray.length) {
+			tempResult = {msBegin: 0, msEnd: 0, sTimeTaken: 0, fileName: '', sessionID: sessionBeginTime};
+			mainImg.src = imgArray[currentIndex].src;
+			mainImg.file = imgArray[currentIndex].file;
+			tempResult.msBegin = new Date().getTime();
+			tempResult.fileName = mainImg.file.name;
+		} else {
+			mainImg.hidden = true;
+			mainImg.src = null;
+			mainImg.file = null;
+			document.getElementById('instruction').innerHTML = 'No images left in array.';
+			document.getElementById('instruction').hidden = false;
+			isFinished = true;
+			console.log(results);
+		}
+	}
+	function keyHandler(evt) {
+		evt = evt || window.event; // IE Compatability thing.
+		if (evt.preventDefault) { evt.preventDefault(); }
+		if(isFinished) {return;}
+		console.log(evt.keyCode);
+		if(evt.keyCode == 32){
+			begin();
+		}
+		if(isStarted === false) {return;}
+		if(evt.keyCode == 38 || evt.keyCode == 87 || evt.keyCode == 89) {
+			nextImg(1);
+		}
+		if(evt.keyCode == 40 || evt.keyCode == 83 || evt.keyCode == 78) {
+			nextImg(0);
+		}
+	}
+	(function() {
+		if(localStorage && localStorage['imgArray']){
+			var tempImg = JSON.parse(localStorage['imgArray']);
+			console.log(tempImg);
+			for(var i = 0; i < tempImg.length; i++) {
+				imgArray.push(tempImg[i]);		
+				var img = document.createElement("img");
+				img.file = tempImg[i].file;
+				img.src = tempImg[i].src;
+				img.style.width = '90%';
+				img.id = tempImg[i].name;
+				var DOMFile = document.createElement('div');
+				DOMFile.innerHTML = img.file.name+' '+Math.round(img.file.size/1000)+' kB';
+				/* TODO: Make some kind of link thing to delete. This'll work but it's inelegant.
+				DOMFile.innerHTML = '<a id="del.'+img.file.name+'" class="x" href="#">[x]</a> '+ 
+									img.file.name+' '+Math.round(img.file.size/1000) + ' kB';
+				*/
+				list.appendChild(DOMFile)
+				list.appendChild(img);
+			}
+		} else {
+			document.getElementById('menu-check').click();
+		}
+	})();
+	});
+	} else {
+	  alert('HTML5 FileReader Not supported by this browser.');
+	}
+})();
+// Cross browser event listener adder from htmlgoodies.com.
+function addEventHandler(obj, evt, handler) {
+    if(obj.addEventListener) {
+        // W3C method
+        obj.addEventListener(evt, handler, false);
+    } else if(obj.attachEvent) {
+        // IE method.
+        obj.attachEvent('on'+evt, handler);
+    } else {
+        // Old school method.
+        obj['on'+evt] = handler;
+    }
+  }
+// Create a closure over the current scope so event handlers work. Also courtesy htmlgoodies.com
+Function.prototype.bindToEventHandler = function bindToEventHandler() {
+  var handler = this;
+  var boundParameters = Array.prototype.slice.call(arguments);
+  //create closure
+  return function(e) {
+      e = e || window.event; // get window.event if e argument missing (in IE)   
+      boundParameters.unshift(e);
+      handler.apply(this, boundParameters);
+  }
+};
+</script>
+</html>
